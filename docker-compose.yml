@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  dx-bot:
+    build: .
+    container_name: dx-bot
+    restart: unless-stopped
+    environment:
+      - BOT_TOKEN=${BOT_TOKEN}
+      - CHAT_ID=${CHAT_ID}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - HEADLESS=true
+    volumes:
+      - ./bot_data:/app/bot_data
+      - ./logs:/app/logs
+    env_file:
+      - .env
