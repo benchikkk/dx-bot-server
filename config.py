@@ -6,8 +6,14 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Telegram Bot настройки
-BOT_TOKEN = os.getenv("BOT_TOKEN", "8440826252:AAEZbVkLMUmsDfJzcbTvyzl2agZYgKVbYXM")
-CHAT_ID = os.getenv("CHAT_ID", "5188883528")
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+CHAT_ID = os.getenv("CHAT_ID")
+
+# Валидация обязательных переменных
+if not BOT_TOKEN:
+    raise ValueError("BOT_TOKEN не установлен. Добавьте его в файл .env")
+if not CHAT_ID:
+    raise ValueError("CHAT_ID не установлен. Добавьте его в файл .env")
 
 # WebDriver настройки
 HEADLESS_MODE = os.getenv("HEADLESS", "false").lower() == "true"

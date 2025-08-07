@@ -135,6 +135,11 @@ bot_data/screenshots/*.png
 bot_data/json_history/*.json
 bot_data/debug_html_*.html
 
+# Environment files
+.env
+env.txt
+*.env
+
 # macOS
 .DS_Store
 .AppleDouble
