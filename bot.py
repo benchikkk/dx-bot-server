@@ -246,11 +246,14 @@ class DexscreenerBot:
             except Exception as e:
                 logger.info(f"Ошибка при обработке Cloudflare: {e}")
             
-            # Сохраняем скриншот с временной меткой
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            screenshot_path = os.path.join(SCREENSHOTS_FOLDER, f"dexscreener_{timestamp}.png")
-            self.driver.save_screenshot(screenshot_path)
-            logger.info(f"Скриншот сохранён: {screenshot_path}")
+            # Сохраняем скриншот с временной меткой (если включено)
+            if SAVE_SCREENSHOTS:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                screenshot_path = os.path.join(SCREENSHOTS_FOLDER, f"dexscreener_{timestamp}.png")
+                self.driver.save_screenshot(screenshot_path)
+                logger.info(f"Скриншот сохранён: {screenshot_path}")
+            else:
+                logger.info("Сохранение скриншотов отключено")
             
             # Ждём загрузку таблицы с токенами
             try:
@@ -621,6 +624,7 @@ class DexscreenerBot:
             "/logs - последние логи\n"
             "/restart - перезапустить бота\n"
             "/stop - остановить бота\n"
+            "/cleanup - очистить старые файлы\n"
             "/help - подробная справка по командам\n"
             "/start - показать это сообщение\n\n"
             "Я автоматически проверяю новые токены каждые 10 минут!"
@@ -662,6 +666,8 @@ class DexscreenerBot:
 • `/restart` - Перезапускает бота (полезно после обновлений кода)
 
 • `/stop` - Полностью останавливает бота и прекращает автоматические проверки
+
+• `/cleanup` - Принудительная очистка старых файлов
 
 📋 **Информация:**
 • `/help` - Показывает эту справку
@@ -755,8 +761,34 @@ class DexscreenerBot:
             "Это может занять несколько секунд."
         )
         logger.info("Перезапуск бота по команде пользователя")
-        # Перезапуск через systemd (если настроен)
-        os.system("sudo systemctl restart dexbot")
+        
+        # Пробуем разные способы перезапуска
+        try:
+            # 1. Docker Compose (рекомендуется)
+            result = os.system("docker-compose restart dx-bot")
+            if result == 0:
+                await update.message.reply_text("✅ Бот перезапущен через Docker Compose")
+                return
+        except:
+            pass
+        
+        try:
+            # 2. Systemd (если настроен)
+            result = os.system("sudo systemctl restart dx-bot")
+            if result == 0:
+                await update.message.reply_text("✅ Бот перезапущен через systemd")
+                return
+        except:
+            pass
+        
+        # 3. Если ничего не сработало
+        await update.message.reply_text(
+            "⚠️ Не удалось автоматически перезапустить бота.\n"
+            "Перезапустите вручную:\n"
+            "• Docker: `docker-compose restart`\n"
+            "• Systemd: `sudo systemctl restart dx-bot`\n"
+            "• Или перезапустите сервер"
+        )
     
     async def stop_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Команда /stop - останавливает бота"""
@@ -789,6 +821,32 @@ class DexscreenerBot:
             message += f"💾 Диск: {sys_info['disk_percent']:.1f}%\n"
         
         await update.message.reply_text(message, parse_mode='Markdown')
+    
+    async def cleanup_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Команда /cleanup - принудительная очистка старых файлов"""
+        await update.message.reply_text("🧹 Выполняю принудительную очистку файлов...")
+        
+        try:
+            # Выполняем очистку
+            self.cleanup_old_files()
+            
+            # Показываем статистику по папкам
+            json_count = len(glob.glob(os.path.join(JSON_HISTORY_FOLDER, "*.json")))
+            screenshot_count = len(glob.glob(os.path.join(SCREENSHOTS_FOLDER, "*.png")))
+            
+            message = "✅ Очистка завершена!\n\n"
+            message += f"📁 JSON файлов: {json_count} (удаляются через {FILE_RETENTION_MINUTES} мин)\n"
+            message += f"📸 Скриншотов: {screenshot_count} (удаляются через {SCREENSHOT_RETENTION_MINUTES} мин)\n"
+            
+            if not SAVE_SCREENSHOTS:
+                message += "\n💡 Скриншоты отключены для экономии места"
+            else:
+                message += f"\n⚡ Частая очистка: каждые {CLEANUP_INTERVAL//60} минут"
+            
+            await update.message.reply_text(message)
+            
+        except Exception as e:
+            await update.message.reply_text(f"❌ Ошибка при очистке: {e}")
     
     async def show_changes(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Команда /changes - показывает изменения в позициях токенов"""
@@ -979,26 +1037,33 @@ class DexscreenerBot:
     def cleanup_old_files(self):
         """Удаляем старые файлы из папок json_history и screenshots"""
         try:
-            # Удаляем файлы старше 100 минут
-            cutoff_time = datetime.now() - timedelta(minutes=100)
+            # Небольшая задержка для безопасности (если парсинг только что завершился)
+            time.sleep(1)
+            
+            # Разные интервалы для разных типов файлов
+            json_cutoff_time = datetime.now() - timedelta(minutes=FILE_RETENTION_MINUTES)
+            screenshot_cutoff_time = datetime.now() - timedelta(minutes=SCREENSHOT_RETENTION_MINUTES)
             
             # Очищаем json_history
             json_files = glob.glob(os.path.join(JSON_HISTORY_FOLDER, "*.json"))
             deleted_json = 0
             for file_path in json_files:
                 file_time = datetime.fromtimestamp(os.path.getctime(file_path))
-                if file_time < cutoff_time:
+                if file_time < json_cutoff_time:
                     os.remove(file_path)
                     deleted_json += 1
             
-            # Очищаем screenshots
-            screenshot_files = glob.glob(os.path.join(SCREENSHOTS_FOLDER, "*.png"))
-            deleted_screenshots = 0
-            for file_path in screenshot_files:
-                file_time = datetime.fromtimestamp(os.path.getctime(file_path))
-                if file_time < cutoff_time:
-                    os.remove(file_path)
-                    deleted_screenshots += 1
+            # Очищаем screenshots (только если они включены)
+            if SAVE_SCREENSHOTS:
+                screenshot_files = glob.glob(os.path.join(SCREENSHOTS_FOLDER, "*.png"))
+                deleted_screenshots = 0
+                for file_path in screenshot_files:
+                    file_time = datetime.fromtimestamp(os.path.getctime(file_path))
+                    if file_time < screenshot_cutoff_time:
+                        os.remove(file_path)
+                        deleted_screenshots += 1
+            else:
+                deleted_screenshots = 0
             
             if deleted_json > 0 or deleted_screenshots > 0:
                 logger.info(f"Очистка: удалено {deleted_json} JSON файлов и {deleted_screenshots} скриншотов")
@@ -1043,6 +1108,7 @@ def main():
     application.add_handler(CommandHandler("stop", bot_instance.stop_command))
     application.add_handler(CommandHandler("help", bot_instance.help_command))
     application.add_handler(CommandHandler("health", bot_instance.health_command))
+    application.add_handler(CommandHandler("cleanup", bot_instance.cleanup_command))
 
     # Периодическая задача через job_queue
     async def periodic_check_job(context: ContextTypes.DEFAULT_TYPE):
@@ -1067,8 +1133,8 @@ def main():
             logger.error(f"Ошибка в cleanup_job: {e}")
 
     # Запускаем первую проверку сразу, а потом каждые 10 минут
-    application.job_queue.run_repeating(periodic_check_job, interval=600, first=0)
-    application.job_queue.run_repeating(cleanup_job, interval=6000, first=0)  # 100 минут = 6000 секунд
+    application.job_queue.run_repeating(periodic_check_job, interval=CHECK_INTERVAL, first=0)
+    application.job_queue.run_repeating(cleanup_job, interval=CLEANUP_INTERVAL, first=0)  # 15 минут
 
     # Добавляем задачу отправки сообщения в job_queue
     # Убираем дублирующее сообщение, так как токены будут отправлены в первой проверке

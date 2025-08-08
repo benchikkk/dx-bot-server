@@ -21,6 +21,9 @@ DRIVER_TIMEOUT = 30
 PAGE_LOAD_WAIT = 5
 CHROME_VERSION = 138  # Версия Chrome для undetected-chromedriver
 
+# Настройки для сервера
+SAVE_SCREENSHOTS = os.getenv("SAVE_SCREENSHOTS", "true").lower() == "true"  # Отключить скриншоты на сервере
+
 # Dexscreener настройки
 DEXSCREENER_URL = "https://dexscreener.com/?rankBy=trendingScoreH1&order=desc&minMarketCap=150000&maxMarketCap=15000000&min24HVol=75000"
 
@@ -31,7 +34,7 @@ MIN_24H_VOLUME = 75_000
 
 # Интервалы проверок (в секундах)
 CHECK_INTERVAL = 600  # 10 минут
-CLEANUP_INTERVAL = 6000  # 100 минут
+CLEANUP_INTERVAL = 900  # 15 минут (вместо 30 минут)
 
 # Файлы и папки
 STATE_FILE = "previous_tokens.json"
@@ -40,7 +43,8 @@ SCREENSHOTS_FOLDER = "bot_data/screenshots"
 JSON_HISTORY_FOLDER = "bot_data/json_history"
 
 # Очистка файлов
-FILE_RETENTION_MINUTES = 100
+FILE_RETENTION_MINUTES = 15  # 15 минут вместо 30
+SCREENSHOT_RETENTION_MINUTES = 10  # Скриншоты удаляем через 10 минут
 
 # Логирование
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
