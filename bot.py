@@ -246,9 +246,11 @@ class DexscreenerBot:
             except Exception as e:
                 logger.info(f"Ошибка при обработке Cloudflare: {e}")
             
+            # Создаем временную метку для отладки
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            
             # Сохраняем скриншот с временной меткой (если включено)
             if SAVE_SCREENSHOTS:
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 screenshot_path = os.path.join(SCREENSHOTS_FOLDER, f"dexscreener_{timestamp}.png")
                 self.driver.save_screenshot(screenshot_path)
                 logger.info(f"Скриншот сохранён: {screenshot_path}")
